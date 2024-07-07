@@ -1,4 +1,4 @@
-//---------------------------------------------------------------------------
+﻿//---------------------------------------------------------------------------
 
 #include <fmx.h>
 #pragma hdrstop
@@ -17,28 +17,21 @@ using namespace mercatortile;
 #pragma resource "*.fmx"
 TForm1 *Form1;
 //---------------------------------------------------------------------------
-__fastcall TForm1::TForm1(TComponent* Owner)
-	: TForm(Owner)
+__fastcall TForm1::TForm1(TComponent* Owner) : TForm(Owner)
 {
-    //Figure out the scaling/////////////////
-	TImage1->Scale->X=1.35;
-    TImage1->Scale->Y=1.35;
 
-	VPCentreLong = OttawaLong;
-	VPCentreLat = OttawaLat;
-	DoDrawAll();
+	NoTile = new TBitmap(TILESIZE, TILESIZE);
+	NoTile->Canvas->BeginScene();
+	NoTile->Clear(claSilver);
+	NoTile->Canvas->Fill->Color = claBlack;
+	NoTile->Canvas->FillText(TRect(0,0,256,128), "No Tile", false, 100, TFillTextFlags() << TFillTextFlag::RightToLeft, TTextAlign::Center,TTextAlign::Center);
+	NoTile->Canvas->EndScene();
+
+	DoViewResetToHome();
 }
 //---------------------------------------------------------------------------
 
 
-void  TForm1::pmeTileInfo(Tile stile)
-{
-	Bbox rbbox = xy_bounds(stile);
-	pme("the tile {%d, %d, %d} xy bounds is\r\n left:%f, bottom:%f, right:%f, top:%f ", stile.x, stile.y, stile.z, rbbox.left, rbbox.bottom, rbbox.right, rbbox.top);
-
-	LngLatBbox llbbox = bounds(stile);
-	pme("the tile {%d, %d, %d} LL bounds is\r\n west:%f, south:%f, east:%f, north:%f ", stile.x, stile.y, stile.z, llbbox.west, llbbox.south, llbbox.east, llbbox.north);
-}
 
 void  TForm1::pme(const char* fmt, ...)
 {
@@ -61,61 +54,64 @@ void  TForm1::pme(const char* fmt, ...)
 
 void __fastcall TForm1::DoDrawAll()
 {
-    Calc3by3andCentreTile();
-	BuildAndDrawMap();
+	CalcCentreOffSets();
+	Build5x5BitMap();
+	DrawMap();
+
 	//DrawTgt();
-	//	pme("zm:%d centreRow:%d  centreColumn:%d  x_offset: %d y_offset:%d",zm, centreRow,centreColumn,mx_offset, my_offset);
 }
 
 
-void  TForm1::Calc3by3andCentreTile()
+
+void  TForm1::CalcCentreOffSets()
 {
+	//Calculates 4 member variables
+
    	// Get the tile containing a longitude and latitude
-	Tile VPCentreTile = tile(VPCentreLong, VPCentreLat, zm);
-	int lastCentreRow = centreRow;
-	int lastCentreColumn = centreColumn;
-	centreRow = VPCentreTile.y;
-	centreColumn = VPCentreTile.x;
+	Tile ViewPortCentreTile = tile(ViewPortCentreLong, ViewPortCentreLat, zm);
+	//save the centreRow and Column before updating
+	int lastCentreRow = m_centreRow;
+	int lastCentreColumn = m_centreColumn;
 
-    //if the centre tile has changed then rebuild the master
-	if ( (lastCentreRow != centreRow) || (lastCentreColumn != centreColumn) )
+	m_centreRow = ViewPortCentreTile.y;
+	m_centreColumn = ViewPortCentreTile.x;
+
+	if (CB_Debug->IsChecked) pme(">>Centre Tile Coords z:%d x:%d  y:%d", zm, m_centreRow, m_centreColumn);
+
+	//if the centre tile has changed then force downstream rebuild the master
+	if ( (lastCentreRow != m_centreRow) || (lastCentreColumn != m_centreColumn) )
 	{
-		if (MasterLoaded) master->Free();
-        MasterLoaded = false;
+		if (MasterBitmapLoaded) m_BitMap5x5->Free();
+		MasterBitmapLoaded = false;
 	}
-	if (CB_Debug->IsChecked) pme(">>Centre Tile Coords z:%d x:%d  y:%d",zm,centreRow,centreColumn);
 
-	// Get the lonlat bounding box of a tile
-	LngLatBbox VPCentreTilebounds = bounds(VPCentreTile);
 
-	double LongWidth = VPCentreTilebounds.east - VPCentreTilebounds.west;
-	double deltaLong = VPCentreLong - VPCentreTilebounds.west;
-	double proportionLong = deltaLong/LongWidth;
-	int xFromCentre = 128 - 256*proportionLong;
+	// Get the lonlat bounding box of the centre tile
+	LngLatBbox ViewPortCentreTilebounds = bounds(ViewPortCentreTile);
 
-	double LatHeight = VPCentreTilebounds.north - VPCentreTilebounds.south;
-	double deltaLat = VPCentreLat - VPCentreTilebounds.north;
-	double proportionLat = deltaLat/LatHeight;
-	int yFromCentre = 128 + 256 * proportionLat;
+	double TileWidthInDegLong = ViewPortCentreTilebounds.east - ViewPortCentreTilebounds.west;
+	double deltaLong = ViewPortCentreLong - ViewPortCentreTilebounds.west;
+	double proportionLong = deltaLong/TileWidthInDegLong;
+	int xFromCentre = HALF_TILESIZE - TILESIZE * proportionLong;
+	//xFromCentre is in the range -128 to 128 (maybe -127 to 127)
 
-	mx_offset = -xFromCentre;
+	double TileHeightInDegLat = ViewPortCentreTilebounds.north - ViewPortCentreTilebounds.south;
+	double deltaLat = ViewPortCentreLat - ViewPortCentreTilebounds.north;
+	double proportionLat = deltaLat/TileHeightInDegLat;
+	int yFromCentre = HALF_TILESIZE + TILESIZE * proportionLat;
+    //yFromCentre is in the range -128 to 128 (maybe -127 to 127)
+
+	mx_offset = -xFromCentre; //this is how far the POI is from the tile's centre in pixels
 	my_offset = -yFromCentre;
 
-    //g_Left g_Top are the upper corner of the 3 x 3 tile map to be displayed on screen
-	g_Left = (640 + mx_offset) - 384;    //640 is half of 1280 = 5 *256
-	g_Top  = (640 + my_offset) - 384;
-
 	if (CB_Debug->IsChecked) {
-		pme("VP Centre: Lat %f  Long %f  Bounds: west: %f east: %f", VPCentreLat, VPCentreLong, VPCentreTilebounds.west,VPCentreTilebounds.east);
+		pme("VP Centre: Lat %f  Long %f  Bounds: west: %f east: %f", ViewPortCentreLat, ViewPortCentreLong, ViewPortCentreTilebounds.west,ViewPortCentreTilebounds.east);
 		pme("Long delta: %f", deltaLong);
 		pme("VP Centre prop: %f", proportionLong);
 		pme("VP Centre: x from centre: %d",xFromCentre);
-
 		pme("VP Centre y from centre: %d",yFromCentre);
 		pme("x offset: %d  y offset: %d",mx_offset, my_offset);
-		pme("g_Left: %d   g_Top: %d",g_Left, g_Top);
 	}
-
 }
 
 
@@ -131,73 +127,96 @@ TBitmap  *TForm1::GetTile(int z,int x,int y)
 	else if (RB_ARCGIS->IsChecked) sprintf(fname,"tiles\\ARCGIS\\%d\\%d\\%d.jpg",zm,x,y);
 	else if (RB_OSM->IsChecked) sprintf(fname,"tiles\\osm\\%d\\%d\\%d.png",zm,x,y);
 
-	TBitmap *bmp1=new TBitmap();
-	if (FileExists(fname)) bmp1->LoadFromFile(fname);
-	else bmp1->LoadFromFile("tiles\\blank.png"); // not guarded should use an in memory bitmap//do this later
-
 	TileCoord t;
-    t.z=z; t.x=x; t.y=y; t.tile = bmp1;
+	t.z=z; t.x=x; t.y=y;
+
+	TBitmap *bmp1;
+	if (FileExists(fname))
+	{
+		bmp1=new TBitmap();
+		bmp1->LoadFromFile(fname);
+	}
+	else
+	{
+		bmp1 = NoTile;
+	}
+
+	t.tile = bmp1;
 	loadedTileList.push_back(t);
     return bmp1;
 }
 
-void  TForm1::BuildAndDrawMap()
+void  TForm1::Build5x5BitMap()
 {
-	if (MasterLoaded == false) {//only build the 5 x 5 master bitmap if its not the same already in memory
-		MasterLoaded = true;
-		master = new TBitmap(256*5,256*5);
+	if (MasterBitmapLoaded == false) {//only build the 5 x 5 master bitmap if its not already in memory
+		MasterBitmapLoaded = true;
+		m_BitMap5x5 = new TBitmap(TILESIZE * 5,TILESIZE * 5);
 
-		master->Canvas->BeginScene();
+		m_BitMap5x5->Canvas->BeginScene();
 			//build a 5 x 5 bitmap
 			for (int row=0;row < 5; row++) {  //these are slippy map tile indexes
 				for (int column=0; column <5; column++) {//these are slippy map tile indexes
 
-					int x = centreColumn + column - 2;
-					int y = centreRow + row - 2;
+					int x = m_centreColumn + column - 2;
+					int y = m_centreRow + row - 2;
 
 					TBitmap *bmp1 = GetTile(zm,x,y);
-					master->CopyFromBitmap(bmp1, TRect(0,0,256,256), column * 256,row*256);
+					m_BitMap5x5->CopyFromBitmap(bmp1, TRect(0,0,TILESIZE,TILESIZE), column * TILESIZE,row*TILESIZE);
 
-					int r[] = {0,256,512,768,1024};
-					TRect Dest( r[column], r[row], 256 + r[column], 256+r[row]);
+					int r[] = {0,TILESIZE,2*TILESIZE,3*TILESIZE,4*TILESIZE};
+					TRect Dest( r[column], r[row], TILESIZE + r[column], TILESIZE+r[row]);
+
 					if (CB_TileOutlines->IsChecked) {
 						//draw outline around each tile
-						master->Canvas->Stroke->Kind = TBrushKind::Solid;
-						master->Canvas->Stroke->Color = claBlue;
-						master->Canvas->Stroke->Thickness  = 1.0;
-						master->Canvas->DrawRect(Dest, 0, 0, AllCorners, 1.0);
+						m_BitMap5x5->Canvas->Stroke->Kind = TBrushKind::Solid;
+						m_BitMap5x5->Canvas->Stroke->Color = claBlue;
+						m_BitMap5x5->Canvas->Stroke->Thickness  = 1.0;
+						m_BitMap5x5->Canvas->DrawRect(Dest, 0, 0, AllCorners, 1.0);
 					}
 					if (CB_TileCoords->IsChecked) {
 						//text overlay, centere3d in Dest rectangle
 						char buf[100];
 						sprintf(buf,"%d/%d/%d",zm,y,x);
-						master->Canvas->Fill->Color = claBlack;
-						master->Canvas->FillText(Dest, buf, false, 100, TFillTextFlags() << TFillTextFlag::RightToLeft, TTextAlign::Center,TTextAlign::Center);
+						m_BitMap5x5->Canvas->Fill->Color = claBlack;
+						m_BitMap5x5->Canvas->FillText(Dest, buf, false, 100, TFillTextFlags() << TFillTextFlag::RightToLeft, TTextAlign::Center,TTextAlign::Center);
 					}
 
 				}
 			}
-		master->Canvas->EndScene();
+		m_BitMap5x5->Canvas->EndScene();
+	}
+
+}
+
+void  TForm1::DrawMap()
+{
+    //g_Left g_Top are the upper corner of the 3 x 3 tile map to be displayed on screen
+	//640 is centre of 5 x 5 bitmap: 5 x 256 = 1024 /2 = 640
+	//640 + mx_offset sh
+	//384 is half of the 3 x 3 (3 x 257 = 768 / 2 = 384)
+	g_Left = (640 + mx_offset) - 384;    //640 is half of 1280 = 5 *256
+	g_Top  = (640 + my_offset) - 384;
+
+	if (CB_Debug->IsChecked) {
+		pme("g_Left: %d   g_Top: %d",g_Left, g_Top);
 	}
 
 
     //draw the shifted master bitmap
 	TImage1->Bitmap->Canvas->BeginScene();
 		TImage1->Bitmap->Canvas->Clear(0);
-		TRect Source(g_Left, g_Top ,g_Left + 768, g_Top + 768);
-		TImage1->Bitmap->Canvas->DrawBitmap(master, Source, TRect(0,0,768,768), 0.75, false );
+		TRect Source(g_Left, g_Top, g_Left + TILESIZEx3, g_Top + TILESIZEx3);
+		TImage1->Bitmap->Canvas->DrawBitmap(m_BitMap5x5, Source, TRect(0,0,TILESIZEx3,TILESIZEx3), 0.75, false );
 
 		if (CB_BigX->IsChecked) {
 			//Draw X through entire map
 			TImage1->Bitmap->Canvas->Stroke->Kind = TBrushKind::Solid;
 			TImage1->Bitmap->Canvas->Stroke->Color = claRed;
 			TImage1->Bitmap->Canvas->Stroke->Thickness  = 1.0;
-			TImage1->Bitmap->Canvas->DrawLine(TPointF(0,0),TPointF(768, 768),1.0);
-			TImage1->Bitmap->Canvas->DrawLine(TPointF(768, 0),TPointF(0, 768),1.0);
+			TImage1->Bitmap->Canvas->DrawLine(TPointF(0,0),TPointF(TILESIZEx3, TILESIZEx3),1.0);
+			TImage1->Bitmap->Canvas->DrawLine(TPointF(TILESIZEx3, 0),TPointF(0, TILESIZEx3),1.0);
 		}
 	TImage1->Bitmap->Canvas->EndScene();
-
-    //master->Free();
 }
 
 //from https://learncplusplus.org/learn-about-bitmap-operations-in-c-builder-firemonkey/
@@ -253,8 +272,8 @@ void __fastcall TForm1::TImage1MouseMove(TObject *Sender, TShiftState Shift, flo
 		else dd = panRates[zm];
         //pme("dd: %1.4f",dd);
 
-		VPCentreLong = VPCentreLong + dx * dd;
-		VPCentreLat = VPCentreLat  - dy * dd;
+		ViewPortCentreLong = ViewPortCentreLong + dx * dd;
+		ViewPortCentreLat = ViewPortCentreLat  - dy * dd;
 		DoDrawAll();
 	}
 
@@ -299,25 +318,29 @@ void __fastcall TForm1::BN_QuitClick(TObject *Sender)
 //---------------------------------------------------------------------------
 
 
+void __fastcall TForm1::DoViewResetToHome()
+{
+	zm = 7;
+	ViewPortCentreLong = OttawaLong;
+	ViewPortCentreLat = OttawaLat;
+	TImage1->Scale->X=1.35;
+	TImage1->Scale->Y=1.35;
+	ClearMapCache();
+	DoDrawAll();
+}
 
 
 void __fastcall TForm1::BN_HomeClick(TObject *Sender)
 {
-	zm = 7;
-	VPCentreLong = OttawaLong;
-	VPCentreLat = OttawaLat;
-   	TImage1->Scale->X=1.35;
-	TImage1->Scale->Y=1.35;
-	ClearMapCache();
-	DoDrawAll();
+	DoViewResetToHome();
 }
 //---------------------------------------------------------------------------
 
 void __fastcall TForm1::ClearMapCache()
 {
 	  loadedTileList.clear();
-	  if (MasterLoaded) master->Free();
-	  MasterLoaded=false;
+	  if (MasterBitmapLoaded) m_BitMap5x5->Free();
+	  MasterBitmapLoaded=false;
 }
 
 void __fastcall TForm1::RB_GTChange(TObject *Sender)    //map type changed

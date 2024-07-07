@@ -68,23 +68,27 @@ private:	// User declarations
 public:		// User declarations
 	__fastcall TForm1(TComponent* Owner);
 	void  pme(const char* fmt, ...);
-	void  pmeStatic(const char* fmt, ...);
-	void __fastcall DoDrawAll();
-    void  BuildAndDrawMap();
-	void __fastcall DrawTgt();
-    void __fastcall DrawBox(TCanvas *c,float x,float y,float hdg,unsigned int tc);
 
-	//void __fastcall DrawTile(int y, int x, int z,int location);
+    void __fastcall DoViewResetToHome();
+	void __fastcall DoDrawAll();
+	void  BuildAndDrawMap();
+	void  CalcCentreTileThen3x3TopLeft();
+	TBitmap  *GetTile(int z,int x,int m);
+	void __fastcall ClearMapCache();
+
+	void __fastcall DrawTgt();
+	void __fastcall DrawBox(TCanvas *c,float x,float y,float hdg,unsigned int tc);
+
 	void __fastcall DrawTile(int y, int x, int z,int vert, int hori);
 
 	void  pmeTileInfo(Tile t);
-    void  Calc3by3andCentreTile();
 
-	TBitmap  *GetTile(int z,int x,int m);
-    void __fastcall ClearMapCache();
-
+	const int HALF_TILESIZE = 128;
+	const int TILESIZE = 256;
+	const int TILESIZEx3 = 768;
 
 	bool b_dragging=false;
+
 
 	double ProjLeft;
 	double ProjTop;
@@ -93,43 +97,37 @@ public:		// User declarations
 	double ProjWidth;
 	double ProjHeight;
 
-	int ViewPortWidth=512;
-	int ViewPortHeight=512;
+	int ViewPortWidth;
+	int ViewPortHeight;
 	double rHoriPerPixel;
 	double rVertPerPixel;
 
-
-	float hdg=15;
-	int centreRow = 45;
-	int centreColumn = 37;
+	int m_centreRow = 0;
+	int m_centreColumn = 0;
 	const int _centreRow =45;
 	const int _centreColumn = 37;
 
-    double OttawaLat = 45.400;
+	double OttawaLat = 45.400;
 	double OttawaLong = -75.690;
-
 
 	int zm = 7;
 	int mx_offset;
 	int my_offset;
-	double VPCentreLat = 45.400;
-	double VPCentreLong = -75.690;
+	double ViewPortCentreLat = 45.400;
+	double ViewPortCentreLong = -75.690;
 
-
-
+	int g_Left;
+	int g_Top;
+	TBitmap *m_BitMap5x5;
+	bool MasterBitmapLoaded = false;
+	std::vector<TileCoord> loadedTileList;
 
 	bool dragging=false;
 	int mouse_down_at_x=0;
 	int mouse_down_at_y=0;
 
-	int g_Left;
-	int g_Top;
-
-	TBitmap *master;
-    bool MasterLoaded = false;
-
-    std::vector<TileCoord> loadedTileList;
-
+	//Dev support vars
+	float hdg=15;
 
 };
 //---------------------------------------------------------------------------
