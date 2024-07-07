@@ -183,6 +183,8 @@
     <PropertyGroup Condition="'$(Cfg_2_Win64)'!=''">
         <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
         <LinkPackageStatics>rtl.lib;fmx.lib</LinkPackageStatics>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <Icon_MainIcon>EmbarcMapping_Icon.ico</Icon_MainIcon>
     </PropertyGroup>
     <ItemGroup>
         <CppCompile Include="EmbarcMapping.cpp">
