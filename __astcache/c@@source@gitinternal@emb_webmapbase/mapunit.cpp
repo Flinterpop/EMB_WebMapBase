@@ -348,7 +348,7 @@ void __fastcall TForm1::DrawBox(TCanvas *c,float x,float y,float hdg,unsigned in
 	TPointF myPoint2 = TPointF(x2,y2);
 	c->DrawLine(myPoint,myPoint2,1.0);
 	c->DrawLine(myPoint2,myPoint2,1.0);
-    pmeStatic("Hdg: %f",hdg);
+    pme("Hdg: %f",hdg);
 }
 
 

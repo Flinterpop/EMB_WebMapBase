@@ -68,7 +68,6 @@ private:	// User declarations
 public:		// User declarations
 	__fastcall TForm1(TComponent* Owner);
 	void  pme(const char* fmt, ...);
-	void  pmeStatic(const char* fmt, ...);
 	void __fastcall DoDrawAll();
     void  BuildAndDrawMap();
 	void __fastcall DrawTgt();
