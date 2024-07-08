@@ -51,6 +51,24 @@ void  TForm1::pme(const char* fmt, ...)
 }
 //---------------------------------------------------------------------------
 
+void  TForm1::pmeMouse(const char* fmt, ...)
+{
+	if (TM_Mouse->Lines->Count > 1000) TM_Mouse->Lines->Clear();
+
+	va_list args;
+	va_start(args, fmt);
+	char buf[200];
+	vsprintf(buf,fmt,args);
+		TM_Mouse->Lines->Add(buf);
+	va_end(args);
+
+	//scroll to bottom of text
+	TM_Mouse->SelStart = TM_Mouse->Lines->Text.Length();
+	TM_Mouse->SelLength = 1;
+	TM_Mouse->ClearSelection();
+}
+
+
 
 void __fastcall TForm1::DoDrawAll()
 {
@@ -104,6 +122,60 @@ void  TForm1::CalcCentreOffSets()
 	mx_offset = -xFromCentre; //this is how far the POI is from the tile's centre in pixels
 	my_offset = -yFromCentre;
 
+
+
+
+
+	// Get the web mercator bounding box of a tile
+	Tile tile_TL;
+	tile_TL.x = ViewPortCentreTile.x - 2;
+	tile_TL.y = ViewPortCentreTile.y - 2;
+	tile_TL.z = ViewPortCentreTile.z;
+	pme("-------------------");
+	pme("TL tile x,y,z: %d %d %d",  tile_TL.x, tile_TL.y, tile_TL.z);
+	Bbox ProjTL = xy_bounds(tile_TL);
+	pme("TL Proj top:%d bottom:%d",  ProjTL.top, ProjTL.bottom);
+	pme("TL Proj left:%d right:%d",  ProjTL.left, ProjTL.right);
+
+	Tile tile_BR;
+	tile_BR.x = ViewPortCentreTile.x + 2;
+	tile_BR.y = ViewPortCentreTile.y + 2;
+	tile_BR.z = ViewPortCentreTile.z;
+	pme("BR tile x,y,z: %d %d %d",  tile_BR.x, tile_BR.y, tile_BR.z);
+	Bbox ProjBR = xy_bounds(tile_BR);
+	pme("BR Proj X:%d Y:%d",  ProjBR.top, ProjBR.left);
+
+
+
+	double pLeft = ProjTL.left;
+	double pRight = ProjBR.right;
+	double pTop = ProjTL.top;
+	double pBottom = ProjBR.bottom;
+
+	double deltaPHori = pLeft - pRight;
+	double deltaPVert = pTop - pBottom;
+
+	int x_Left = 256 + mx_offset; //with no shift left edge of the 3x3 starts over 256 and down 256 from 0,0 of the 5x5 bitmap
+	int y_Top  = 256 + my_offset;
+
+	double xProportion = x_Left/1280.0;
+	double yProportion = y_Top/1280.0;
+	ProjLeft =   pLeft + (deltaPHori * xProportion);
+	ProjTop  =   pTop  + (deltaPVert * yProportion);
+
+	LngLat TL = lnglat(ProjLeft,ProjTop);
+	pme("TL lat: %f  lon:%f",TL.lat, TL.lng);
+
+	int x_Right = x_Left + 768;
+	int y_Bottom  = y_Top + 768;
+	ProjRight  = ProjLeft + deltaPHori *0.60;  // 3 fifths
+	ProjBottom = ProjTop + deltaPVert *0.60;  // 3 fifths
+
+	LngLat BR = lnglat(ProjRight,ProjBottom);
+	pme("BR lat:%f  lon:%f",BR.lat, BR.lng);
+
+
+
 	if (CB_Debug->IsChecked) {
 		pme("VP Centre: Lat %f  Long %f  Bounds: west: %f east: %f", ViewPortCentreLat, ViewPortCentreLong, ViewPortCentreTilebounds.west,ViewPortCentreTilebounds.east);
 		pme("Long delta: %f", deltaLong);
@@ -115,7 +187,25 @@ void  TForm1::CalcCentreOffSets()
 }
 
 
-TBitmap  *TForm1::GetTile(int z,int x,int y)
+void  TForm1::MouseToLatLong(int x, int y)
+{
+	double ProjWidth = ProjLeft - ProjRight;
+	double ProjHeight = ProjTop - ProjBottom;
+	pme("ProJ Left:%d  Right:%d",ProjLeft,ProjRight);
+
+	double ProjX = (x/768.0) * ProjWidth;
+	ProjX += ProjLeft;
+	double ProjY = (y/768.0) * ProjHeight;
+	ProjY += ProjTop;
+    pme("mseProj X:%f  Y:%f",ProjX, ProjY);
+	LngLat LL = lnglat(ProjX, ProjY);
+    pme("lat: %f  Long: %f", LL.lat, LL.lng);
+
+
+
+}
+
+TBitmap  *TForm1::GetTileBitmap(int z,int x,int y)
 {
 	for (TileCoord t : loadedTileList) {
 		if ((t.z==z) && (t.x==x) && (t.y==y)) return t.tile;
@@ -135,15 +225,17 @@ TBitmap  *TForm1::GetTile(int z,int x,int y)
 	{
 		bmp1=new TBitmap();
 		bmp1->LoadFromFile(fname);
+		t.loaded=true;
 	}
 	else
 	{
 		bmp1 = NoTile;
+        t.loaded=false;
 	}
 
 	t.tile = bmp1;
 	loadedTileList.push_back(t);
-    return bmp1;
+	return bmp1;
 }
 
 void  TForm1::Build5x5BitMap()
@@ -160,8 +252,10 @@ void  TForm1::Build5x5BitMap()
 					int x = m_centreColumn + column - 2;
 					int y = m_centreRow + row - 2;
 
-					TBitmap *bmp1 = GetTile(zm,x,y);
+					TBitmap *bmp1 = GetTileBitmap(zm,x,y);
 					m_BitMap5x5->CopyFromBitmap(bmp1, TRect(0,0,TILESIZE,TILESIZE), column * TILESIZE,row*TILESIZE);
+
+					//bmp1->Free(); ////To DO - this causes a crash. Why? it shouldn't be needed after its copied
 
 					int r[] = {0,TILESIZE,2*TILESIZE,3*TILESIZE,4*TILESIZE};
 					TRect Dest( r[column], r[row], TILESIZE + r[column], TILESIZE+r[row]);
@@ -180,12 +274,10 @@ void  TForm1::Build5x5BitMap()
 						m_BitMap5x5->Canvas->Fill->Color = claBlack;
 						m_BitMap5x5->Canvas->FillText(Dest, buf, false, 100, TFillTextFlags() << TFillTextFlag::RightToLeft, TTextAlign::Center,TTextAlign::Center);
 					}
-
 				}
 			}
 		m_BitMap5x5->Canvas->EndScene();
 	}
-
 }
 
 void  TForm1::DrawMap()
@@ -247,10 +339,7 @@ void __fastcall TForm1::TImage1MouseWheel(TObject *Sender, TShiftState Shift, in
 			if (++zm>20) zm = 20;
 			else DoDrawAll();
 		}
-
 	}
-
-
 }
 //---------------------------------------------------------------------------
 
@@ -259,6 +348,11 @@ void __fastcall TForm1::TImage1MouseWheel(TObject *Sender, TShiftState Shift, in
 void __fastcall TForm1::TImage1MouseMove(TObject *Sender, TShiftState Shift, float X, float Y)
 {
 	if (CB_Debug->IsChecked) pme("Mse xy: %d %d",   (int)X, (int)Y);
+
+	pmeMouse("Mse xy: %d %d",   (int)X, (int)Y);
+    MouseToLatLong(X,Y);
+
+
 
 	if (dragging) {
 		int dx =	mouse_down_at_x - (int)X;
@@ -299,10 +393,10 @@ void __fastcall TForm1::TImage1MouseDown(TObject *Sender, TMouseButton Button, T
 void __fastcall TForm1::TImage1MouseUp(TObject *Sender, TMouseButton Button, TShiftState Shift,
 		  float X, float Y)
 {
-	dragging=false;
+	dragging = false;
 	Panel1->Cursor = crDefault;
-	mouse_down_at_x=0;
-	mouse_down_at_y=0;
+	mouse_down_at_x = 0;
+	mouse_down_at_y = 0;
 	if (CB_Debug->IsChecked) pme("Mouse Up at %f %f",X,Y);
 
 }
@@ -313,6 +407,8 @@ void __fastcall TForm1::TImage1MouseUp(TObject *Sender, TMouseButton Button, TSh
 void __fastcall TForm1::BN_QuitClick(TObject *Sender)
 {
 	Timer1->Enabled = false;
+	ClearMapCache();
+	NoTile->Free();
 	Close();
 }
 //---------------------------------------------------------------------------
@@ -338,12 +434,17 @@ void __fastcall TForm1::BN_HomeClick(TObject *Sender)
 
 void __fastcall TForm1::ClearMapCache()
 {
-	  loadedTileList.clear();
-	  if (MasterBitmapLoaded) m_BitMap5x5->Free();
-	  MasterBitmapLoaded=false;
+	for (auto t : loadedTileList)
+	{
+		if (t.loaded) t.tile->Free();
+	}
+	loadedTileList.clear();
+	if (MasterBitmapLoaded) m_BitMap5x5->Free();
+  	MasterBitmapLoaded = false;
 }
 
-void __fastcall TForm1::RB_GTChange(TObject *Sender)    //map type changed
+void __fastcall TForm1::RefreshMap(TObject *Sender)    //map type changed
+//one of the map service provider Radio Buttons was changed
 {
 	ClearMapCache();
 	DoDrawAll();
@@ -446,10 +547,4 @@ void __fastcall TForm1::Panel1Exit(TObject *Sender)
 //---------------------------------------------------------------------------
 
 
-void __fastcall TForm1::CB_TileOutlinesChange(TObject *Sender)
-{
-	ClearMapCache();
-    DoDrawAll();
-}
-//---------------------------------------------------------------------------
 

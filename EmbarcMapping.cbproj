@@ -182,9 +182,11 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win64)'!=''">
         <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
-        <LinkPackageStatics>rtl.lib;fmx.lib</LinkPackageStatics>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <Icon_MainIcon>EmbarcMapping_Icon.ico</Icon_MainIcon>
+        <UsePackages>true</UsePackages>
+        <DynamicRTL>true</DynamicRTL>
+        <LinkPackageImports>rtl.bpi;fmx.bpi</LinkPackageImports>
     </PropertyGroup>
     <ItemGroup>
         <CppCompile Include="EmbarcMapping.cpp">
@@ -209,6 +211,9 @@
         <CppCompile Include="MercatorTile.cpp">
             <BuildOrder>5</BuildOrder>
         </CppCompile>
+        <None Include="MercatorTile.h">
+            <BuildOrder>7</BuildOrder>
+        </None>
         <None Include="TileFunctions.h">
             <BuildOrder>6</BuildOrder>
         </None>
@@ -316,9 +321,9 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName=".\Win32\Debug\EmbarcMapping.tds" Configuration="Debug" Class="DebugSymbols">
-                    <Platform Name="Win32">
-                        <RemoteName>EmbarcMapping.tds</RemoteName>
+                <DeployFile LocalName=".\Win64\Release\EmbarcMapping.exe" Configuration="Release" Class="ProjectOutput">
+                    <Platform Name="Win64">
+                        <RemoteName>EmbarcMapping.exe</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

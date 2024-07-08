@@ -1,4 +1,4 @@
-﻿#include "MercatorTile.h"
+#include "MercatorTile.h"
 #include <math.h>
 #include <stdlib.h>
 #include <algorithm>
