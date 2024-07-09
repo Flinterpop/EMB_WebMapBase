@@ -84,7 +84,7 @@ public:		// User declarations
 
 	void  pmeTileInfo(Tile t);
 
-    void  MouseToLatLong(int x, int y);
+    void  MouseToLatLong(float x, float y);
 
 	const int HALF_TILESIZE = 128;
 	const int TILESIZE = 256;

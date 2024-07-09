@@ -3,7 +3,7 @@ object Form1: TForm1
   Top = 0
   Caption = 'EMB Mapping Base - 7 Jul 2024'
   ClientHeight = 578
-  ClientWidth = 548
+  ClientWidth = 1032
   FormFactor.Width = 320
   FormFactor.Height = 480
   FormFactor.Devices = [Desktop]
@@ -15,18 +15,18 @@ object Form1: TForm1
     TextSettings.Font.Size = 10.000000000000000000
     Position.X = 8.000000000000000000
     Position.Y = 420.000000000000000000
-    Size.Width = 384.000000000000000000
+    Size.Width = 444.000000000000000000
     Size.Height = 150.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 0
-    Viewport.Width = 380.000000000000000000
+    Viewport.Width = 440.000000000000000000
     Viewport.Height = 146.000000000000000000
   end
   object BitmapAnimation1: TBitmapAnimation
     Duration = 0.200000002980232200
   end
   object BN_Quit: TButton
-    Position.X = 407.000000000000000000
+    Position.X = 460.000000000000000000
     Position.Y = 520.000000000000000000
     Size.Width = 80.000000000000000000
     Size.Height = 50.000000000000000000
@@ -73,8 +73,8 @@ object Form1: TForm1
     ClipChildren = True
     Position.X = 8.000000000000000000
     Position.Y = 8.000000000000000000
-    Size.Width = 391.000000000000000000
-    Size.Height = 391.000000000000000000
+    Size.Width = 384.000000000000000000
+    Size.Height = 384.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 7
     object TImage1: TImage
@@ -291,8 +291,8 @@ object Form1: TForm1
         end>
       Anchors = []
       Locked = True
-      Position.X = 1.000000000000000000
-      Position.Y = 1.000000000000000000
+      Position.X = -2.455242872238159000
+      Position.Y = -2.455242872238159000
       Size.Width = 384.000000000000000000
       Size.Height = 384.000000000000000000
       Size.PlatformDefault = False
@@ -304,8 +304,7 @@ object Form1: TForm1
     end
   end
   object CB_Debug: TCheckBox
-    IsChecked = True
-    Position.X = 406.000000000000000000
+    Position.X = 460.000000000000000000
     Position.Y = 450.000000000000000000
     Size.Width = 73.000000000000000000
     Size.Height = 19.000000000000000000
@@ -314,7 +313,7 @@ object Form1: TForm1
     Text = 'Debug'
   end
   object BN_Clear: TButton
-    Position.X = 406.000000000000000000
+    Position.X = 460.000000000000000000
     Position.Y = 420.000000000000000000
     TabOrder = 9
     Text = 'Clear'
@@ -400,16 +399,28 @@ object Form1: TForm1
       OnChange = RefreshMap
     end
   end
-  object Memo1: TMemo
+  object TM_Mouse: TMemo
     Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
     DataDetectorTypes = []
+    StyledSettings = [Family, Style, FontColor]
+    TextSettings.Font.Size = 10.000000000000000000
     Position.X = 407.000000000000000000
     Position.Y = 298.000000000000000000
-    Size.Width = 140.000000000000000000
+    Size.Width = 250.000000000000000000
     Size.Height = 95.000000000000000000
     Size.PlatformDefault = False
-    TabOrder = 13
-    Viewport.Width = 136.000000000000000000
+    TabOrder = 12
+    Viewport.Width = 246.000000000000000000
     Viewport.Height = 91.000000000000000000
+  end
+  object Image1: TImage
+    MultiResBitmap = <
+      item
+      end>
+    Position.X = 592.000000000000000000
+    Position.Y = 24.000000000000000000
+    Size.Width = 384.000000000000000000
+    Size.Height = 384.000000000000000000
+    Size.PlatformDefault = False
   end
 end

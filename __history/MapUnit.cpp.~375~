@@ -123,53 +123,49 @@ void  TForm1::CalcCentreOffSets()
 	my_offset = -yFromCentre;
 
 
+    //PROJECTION Code  ///////////////////
+	// Get the upper left of Top Left of 5 x 5
+	double TL_Long = tilex2long(ViewPortCentreTile.x-1, zm);
+	double TL_Lat = tiley2lat(ViewPortCentreTile.y-1, zm);
+	pme("TL LL Lat:%f Lon:%f", TL_Lat, TL_Long);
+	double TL_Px = lonToX(TL_Long);
+	double TL_Py = latToY(TL_Lat);
+	pme("TL Proj left:%f top:%f",  TL_Px, TL_Py);
 
+	// Get the bottom right of Bottom Right tile of 5 x 5
+	double BR_Long = tilex2long(ViewPortCentreTile.x + 2, zm);
+	double BR_Lat = tiley2lat(ViewPortCentreTile.y + 2, zm);
+	pme("BR LL Lat:%f Lon:%f",  BR_Lat, BR_Long);
+	double BR_Px = lonToX(BR_Long);
+	double BR_Py = latToY(BR_Lat);
+	pme("BR Proj right:%f bottom:%f",  BR_Px, BR_Py);
 
+	double deltaPHori = TL_Px - BR_Px;
+	double deltaPVert = TL_Py - BR_Py;
+	pme("Widths: deltaPHori: %f deltaPVert: %f", deltaPHori, deltaPVert);
 
-	// Get the web mercator bounding box of a tile
-	Tile tile_TL;
-	tile_TL.x = ViewPortCentreTile.x - 2;
-	tile_TL.y = ViewPortCentreTile.y - 2;
-	tile_TL.z = ViewPortCentreTile.z;
-	pme("-------------------/r/nTL tile x,y,z: %d %d %d",  tile_TL.x, tile_TL.y, tile_TL.z);
+	pme("--------------------------");
 
-	Bbox ProjTL = xy_bounds(tile_TL);
+	//int x_Left = 256 + mx_offset; //with no shift left edge of the 3x3 starts over 256 and down 256 from 0,0 of the 5x5 bitmap
+	//int y_Top  = 256 + my_offset;
 
-	Tile tile_BR;
-	tile_BR.x = ViewPortCentreTile.x + 2;
-	tile_BR.y = ViewPortCentreTile.y + 2;
-	tile_BR.z = ViewPortCentreTile.z;
-	pme("BR tile x,y,z: %d %d %d",  tile_BR.x, tile_BR.y, tile_BR.z);
-
-	Bbox ProjBR = xy_bounds(tile_BR);
-	double pLeft = ProjTL.left;
-	double pRight = ProjBR.right;
-	double pTop = ProjTL.top;
-	double pBottom = ProjBR.bottom;
-
-	double deltaPHori = pLeft - pRight;
-	double deltaPVert = pTop - pBottom;
-
-	int x_Left = 256 + mx_offset; //with no shift left edge of the 3x3 starts over 256 and down 256 from 0,0 of the 5x5 bitmap
-	int y_Top  = 256 + my_offset;
-
-	double xProportion = x_Left/1280.0;
-	double yProportion = y_Top/1280.0;
-	ProjLeft =   pLeft + (deltaPHori * xProportion);
-	ProjTop  =   pTop  + (deltaPVert * yProportion);
-
+	double horishift = (mx_offset/768.0)*deltaPHori;
+	double vertshift = (my_offset/768.0)*deltaPVert;
+	ProjLeft =   TL_Px + horishift;
+	ProjTop  =   TL_Py + vertshift;
+	pme("3 x 3 TL Proj left:%f top:%f",  ProjLeft, ProjTop);
 	LngLat TL = lnglat(ProjLeft,ProjTop);
-	pme("TL lat: %f  lon:%f",TL.lat, TL.lng);
+	pme("3 x 3 TL lat: %f  lon:%f",TL.lat, TL.lng);
 
-	int x_Right = x_Left + 768;
-	int y_Bottom  = y_Top + 768;
-	ProjRight  = ProjLeft + deltaPHori *0.60;  // 3 fifths
-	ProjBottom = ProjTop + deltaPVert *0.60;  // 3 fifths
-
+	ProjRight  = BR_Px + horishift;
+    ProjBottom = BR_Py + vertshift;
+	pme("3 x 3 BR Proj Bottom:%f Right:%f",  ProjBottom, ProjRight);
 	LngLat BR = lnglat(ProjRight,ProjBottom);
 	pme("BR lat:%f  lon:%f",BR.lat, BR.lng);
 
 
+	ProjWidth = ProjLeft - ProjRight;
+	ProjHeight = ProjTop - ProjBottom;
 
 	if (CB_Debug->IsChecked) {
 		pme("VP Centre: Lat %f  Long %f  Bounds: west: %f east: %f", ViewPortCentreLat, ViewPortCentreLong, ViewPortCentreTilebounds.west,ViewPortCentreTilebounds.east);
@@ -182,19 +178,23 @@ void  TForm1::CalcCentreOffSets()
 }
 
 
-void  TForm1::MouseToLatLong(int x, int y)
+void  TForm1::MouseToLatLong(float x, float y)
 {
-	double ProjWidth = ProjLeft - ProjRight;
-	double ProjHeight = ProjTop - ProjBottom;
-	pme("ProJ Left:%d  Right:%d",ProjLeft,ProjRight);
+	pmeMouse("Mse xy: %f %f", x ,y);
 
-	double ProjX = (x/768.0) * ProjWidth;
-	ProjX += ProjLeft;
-	double ProjY = (y/768.0) * ProjHeight;
-	ProjY += ProjTop;
-    pme("mseProj X:%f  Y:%f",ProjX, ProjY);
-	LngLat LL = lnglat(ProjX, ProjY);
-    pme("lat: %f  Long: %f", LL.lat, LL.lng);
+	double w = TImage1->Width;
+	double h = TImage1->Height;
+	pme("Mse from Centre: %f %f",w/2 -x, h/2-y);
+
+
+	float s = TImage1->Scale->X;
+	pmeMouse("Panel size: %d %d  scale: %f",w,h,s);
+	pmeMouse("Mse scaled xy: %f %f", x*s ,y*s);
+	double PX = ProjLeft + double(x)/w *s * ProjWidth;
+	double PY = ProjTop + double(y)/h * s * ProjHeight;
+	pmeMouse("mseProj X:%f  Y:%f",PX, PY);
+	LngLat LL = lnglat(PX, PY);
+    pmeMouse("lat: %f  Long: %f", LL.lat, LL.lng);
 
 
 
@@ -342,10 +342,9 @@ void __fastcall TForm1::TImage1MouseWheel(TObject *Sender, TShiftState Shift, in
 
 void __fastcall TForm1::TImage1MouseMove(TObject *Sender, TShiftState Shift, float X, float Y)
 {
-	if (CB_Debug->IsChecked) pme("Mse xy: %d %d",   (int)X, (int)Y);
+	if (CB_Debug->IsChecked) pme("Mse xy: %f %f", X, Y);
 
-	pmeMouse("Mse xy: %d %d",   (int)X, (int)Y);
-    MouseToLatLong(X,Y);
+	MouseToLatLong(X,Y);
 
 
 
@@ -414,8 +413,8 @@ void __fastcall TForm1::DoViewResetToHome()
 	zm = 7;
 	ViewPortCentreLong = OttawaLong;
 	ViewPortCentreLat = OttawaLat;
-	TImage1->Scale->X=1.35;
-	TImage1->Scale->Y=1.35;
+	//TImage1->Scale->X=1.35;
+	//TImage1->Scale->Y=1.35;
 	ClearMapCache();
 	DoDrawAll();
 }
@@ -540,6 +539,7 @@ void __fastcall TForm1::Panel1Exit(TObject *Sender)
 	Panel1->Cursor = crDefault;
 }
 //---------------------------------------------------------------------------
+
 
 
 
