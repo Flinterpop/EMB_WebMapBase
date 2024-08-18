@@ -34,12 +34,9 @@ __published:	// IDE-managed Components
 	TTimer *Timer1;
 	TButton *BN_StartStop;
 	TButton *BN_Home;
-	TButton *BN_ZoomIn;
-	TButton *BN_ZoomOut;
 	TRadioButton *RB_GT;
 	TRadioButton *RB_ARCGIS;
 	TRadioButton *RB_OSM;
-	TPanel *Panel1;
 	TCheckBox *CB_Debug;
 	TButton *BN_Clear;
 	TGroupBox *GP_MapControl;
@@ -61,6 +58,7 @@ __published:	// IDE-managed Components
 	void __fastcall BN_ClearClick(TObject *Sender);
 	void __fastcall Panel1Exit(TObject *Sender);
 	void __fastcall RefreshMap(TObject *Sender);
+	void __fastcall BN_ZeroClick(TObject *Sender);
 
 
 private:	// User declarations
@@ -72,19 +70,23 @@ public:		// User declarations
     void __fastcall DoViewResetToHome();
 	void __fastcall DoDrawAll();
 	void  Build5x5BitMap();
-	void  CalcCentreOffSets();
 	void  DrawMap();
 	TBitmap  *GetTileBitmap(int z,int x,int m);
 	void __fastcall ClearMapCache();
 
-	void __fastcall DrawTgt();
-	void __fastcall DrawBox(TCanvas *c,float x,float y,float hdg,unsigned int tc);
+    void __fastcall DrawTgt();
+	void __fastcall DrawTgt(double tlat, double tlon,double hdg);
 
+	void __fastcall DrawTrack(TCanvas *c,float x,float y,float hdg,unsigned int tc);
+    void __fastcall DrawRect(TCanvas *c,TRect MyRect, unsigned int tc);
 	void __fastcall DrawTile(int y, int x, int z,int vert, int hori);
+	void __fastcall FillRect(TCanvas *c,TRect MyRect, unsigned int tc);
+
+	XY __fastcall LLtoVPposition(double lat, double lon);
 
 	void  pmeTileInfo(Tile t);
 
-    void  MouseToLatLong(float x, float y);
+    LngLat MouseToLatLong(float x, float y);
 
 	const int HALF_TILESIZE = 128;
 	const int TILESIZE = 256;
@@ -106,19 +108,17 @@ public:		// User declarations
 	double rHoriPerPixel;
 	double rVertPerPixel;
 
-	int m_centreRow = 0;
-	int m_centreColumn = 0;
-	const int _centreRow =45;
-	const int _centreColumn = 37;
+	//const int _centreRow;// =45;
+	//const int _centreColumn;// = 37;
 
-	double OttawaLat = 45.400;
-	double OttawaLong = -75.690;
+	double HomeLat = 45.27630;
+	double HomeLong = -75.88454;
 
 	int zm = 7;
 	int mx_offset;
 	int my_offset;
-	double ViewPortCentreLat = 45.400;
-	double ViewPortCentreLong = -75.690;
+	LngLat VPCentreLL = {HomeLat,HomeLong};
+    XY VPCentreProj;
 
 	int g_Left;
 	int g_Top;
@@ -132,6 +132,27 @@ public:		// User declarations
 
 	//Dev support vars
 	float hdg=15;
+
+
+
+	void __fastcall CalcCenterTileAndOffsetOf_POIfromCentreOfItsItsTile();
+	void  __fastcall Calc3x3UnshiftedProjection();
+	void __fastcall CalcViewPortShiftedProjection();
+	void __fastcall DrawNotes();
+    char mouseOverlayText[200];
+
+	Tile m_ViewPortCentreTile;
+
+	Bbox m_3x3BBox;
+	double m_X_3x3Width;  //width in Projection units of current viewpoer
+	double m_Y_3x3Height; //height in Projection units of current viewpoer
+
+	Bbox m_ViewPortBBox; //web mercator bounding box of viewport
+	double m_ProjPerHoriPixel;
+	double m_ProjPerVertPixel;
+
+
+
 
 };
 //---------------------------------------------------------------------------

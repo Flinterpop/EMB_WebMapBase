@@ -19,7 +19,6 @@ TForm1 *Form1;
 //---------------------------------------------------------------------------
 __fastcall TForm1::TForm1(TComponent* Owner) : TForm(Owner)
 {
-
 	NoTile = new TBitmap(TILESIZE, TILESIZE);
 	NoTile->Canvas->BeginScene();
 	NoTile->Clear(claSilver);
@@ -28,6 +27,8 @@ __fastcall TForm1::TForm1(TComponent* Owner) : TForm(Owner)
 	NoTile->Canvas->EndScene();
 
 	DoViewResetToHome();
+	DoDrawAll();
+
 }
 //---------------------------------------------------------------------------
 
@@ -72,133 +73,187 @@ void  TForm1::pmeMouse(const char* fmt, ...)
 
 void __fastcall TForm1::DoDrawAll()
 {
-	CalcCentreOffSets();
+    CalcCenterTileAndOffsetOf_POIfromCentreOfItsItsTile();
+	Calc3x3UnshiftedProjection();
+	CalcViewPortShiftedProjection();
 	Build5x5BitMap();
-	DrawMap();
 
-	//DrawTgt();
+	DrawMap();
+	DrawNotes();
+	DrawTgt();
+
+
+	// Convert  web mercator x, y to longtitude and latitude.
+	LngLat TL = lnglat(m_ViewPortBBox.left, m_ViewPortBBox.top);
+	LngLat BR = lnglat(m_ViewPortBBox.right, m_ViewPortBBox.bottom);
+
+    TM_Mouse->Lines->Clear();
+	pmeMouse("Corners:");
+	pmeMouse("Top Left: %5.2f %6.2f:",TL.lat ,TL.lng);
+   	pmeMouse("Bottom Right: %5.2f %6.2f:",BR.lat ,BR.lng);
+
 }
 
 
-
-void  TForm1::CalcCentreOffSets()
+//Calculates 3 member variables: mx_offset, my_offset,  m_ViewPortCentreTile in x,y,z
+//based on POI that should be in centre of map
+//only needs to be called once and then whenever the map pans or zooms
+void __fastcall TForm1::CalcCenterTileAndOffsetOf_POIfromCentreOfItsItsTile()
 {
-	//Calculates 4 member variables
+	//save the centre Row and Column before updating
+	int lastCentreRow = m_ViewPortCentreTile.y;
+	int lastCentreColumn = m_ViewPortCentreTile.x;
 
-   	// Get the tile containing a longitude and latitude
-	Tile ViewPortCentreTile = tile(ViewPortCentreLong, ViewPortCentreLat, zm);
-	//save the centreRow and Column before updating
-	int lastCentreRow = m_centreRow;
-	int lastCentreColumn = m_centreColumn;
+	// Get the tile containing a longitude and latitude of the current centre
+	m_ViewPortCentreTile = tile(VPCentreLL.lng, VPCentreLL.lat, zm);
+	//pme(">>Centre Tile Coords z:%d x:%d  y:%d", ViewPortCentreTile.z, ViewPortCentreTile.x, ViewPortCentreTile.y);
 
-	m_centreRow = ViewPortCentreTile.y;
-	m_centreColumn = ViewPortCentreTile.x;
-
-	if (CB_Debug->IsChecked) pme(">>Centre Tile Coords z:%d x:%d  y:%d", zm, m_centreRow, m_centreColumn);
-
-	//if the centre tile has changed then force downstream rebuild the master
-	if ( (lastCentreRow != m_centreRow) || (lastCentreColumn != m_centreColumn) )
+	//if the centre tile has changed then force downstream rebuild of the master 5 x 5 bitmap
+	if ( (lastCentreRow != m_ViewPortCentreTile.y) || (lastCentreColumn != m_ViewPortCentreTile.x) )
 	{
 		if (MasterBitmapLoaded) m_BitMap5x5->Free();
 		MasterBitmapLoaded = false;
 	}
 
+	// Get the Proj bounding box of the centre tile
+	Bbox ViewPortCentreTileboundsXY = xy_bounds(m_ViewPortCentreTile);
+	//pme("CalcOS:ViewPortCentreTilebounds top:%5.0f bottom:%5.0f  left:%5.0f  right:%5.0f", ViewPortCentreTileboundsXY.top,ViewPortCentreTileboundsXY.bottom, 		ViewPortCentreTileboundsXY.left,ViewPortCentreTileboundsXY.right);
 
-	// Get the lonlat bounding box of the centre tile
-	LngLatBbox ViewPortCentreTilebounds = bounds(ViewPortCentreTile);
+    // Calculate Projection Coords of centre feature
+	XY POI_Pxy = xy(VPCentreLL.lng, VPCentreLL.lat);
 
-	double TileWidthInDegLong = ViewPortCentreTilebounds.east - ViewPortCentreTilebounds.west;
-	double deltaLong = ViewPortCentreLong - ViewPortCentreTilebounds.west;
-	double proportionLong = deltaLong/TileWidthInDegLong;
-	int xFromCentre = HALF_TILESIZE - TILESIZE * proportionLong;
-	//xFromCentre is in the range -128 to 128 (maybe -127 to 127)
+	//calc vertical offset in pixels
+	double TileHeightInY = ViewPortCentreTileboundsXY.top - ViewPortCentreTileboundsXY.bottom;
+	double distanceFromTopEdgeInY = ViewPortCentreTileboundsXY.top - POI_Pxy.y;  //from POI to edge
+	double proportionY = distanceFromTopEdgeInY/TileHeightInY;
+	int yFromTopInPixels = TILESIZE * proportionY;
+	my_offset = yFromTopInPixels - HALF_TILESIZE;
+	//pme("CalcOS:POI deltaY = %f   POI my_offset: %d   POI yFromTopInPixels:%d",distanceFromTopEdgeInY, my_offset,yFromTopInPixels);
 
-	double TileHeightInDegLat = ViewPortCentreTilebounds.north - ViewPortCentreTilebounds.south;
-	double deltaLat = ViewPortCentreLat - ViewPortCentreTilebounds.north;
-	double proportionLat = deltaLat/TileHeightInDegLat;
-	int yFromCentre = HALF_TILESIZE + TILESIZE * proportionLat;
-    //yFromCentre is in the range -128 to 128 (maybe -127 to 127)
-
-	mx_offset = -xFromCentre; //this is how far the POI is from the tile's centre in pixels
-	my_offset = -yFromCentre;
-
-
-    //PROJECTION Code  ///////////////////
-	// Get the upper left of Top Left of 5 x 5
-	double TL_Long = tilex2long(ViewPortCentreTile.x-1, zm);
-	double TL_Lat = tiley2lat(ViewPortCentreTile.y-1, zm);
-	pme("TL LL Lat:%f Lon:%f", TL_Lat, TL_Long);
-	double TL_Px = lonToX(TL_Long);
-	double TL_Py = latToY(TL_Lat);
-	pme("TL Proj left:%f top:%f",  TL_Px, TL_Py);
-
-	// Get the bottom right of Bottom Right tile of 5 x 5
-	double BR_Long = tilex2long(ViewPortCentreTile.x + 2, zm);
-	double BR_Lat = tiley2lat(ViewPortCentreTile.y + 2, zm);
-	pme("BR LL Lat:%f Lon:%f",  BR_Lat, BR_Long);
-	double BR_Px = lonToX(BR_Long);
-	double BR_Py = latToY(BR_Lat);
-	pme("BR Proj right:%f bottom:%f",  BR_Px, BR_Py);
-
-	double deltaPHori = TL_Px - BR_Px;
-	double deltaPVert = TL_Py - BR_Py;
-	pme("Widths: deltaPHori: %f deltaPVert: %f", deltaPHori, deltaPVert);
-
-	pme("--------------------------");
-
-	//int x_Left = 256 + mx_offset; //with no shift left edge of the 3x3 starts over 256 and down 256 from 0,0 of the 5x5 bitmap
-	//int y_Top  = 256 + my_offset;
-
-	double horishift = (mx_offset/768.0)*deltaPHori;
-	double vertshift = (my_offset/768.0)*deltaPVert;
-	ProjLeft =   TL_Px + horishift;
-	ProjTop  =   TL_Py + vertshift;
-	pme("3 x 3 TL Proj left:%f top:%f",  ProjLeft, ProjTop);
-	LngLat TL = lnglat(ProjLeft,ProjTop);
-	pme("3 x 3 TL lat: %f  lon:%f",TL.lat, TL.lng);
-
-	ProjRight  = BR_Px + horishift;
-    ProjBottom = BR_Py + vertshift;
-	pme("3 x 3 BR Proj Bottom:%f Right:%f",  ProjBottom, ProjRight);
-	LngLat BR = lnglat(ProjRight,ProjBottom);
-	pme("BR lat:%f  lon:%f",BR.lat, BR.lng);
+	//calc horizontal offset in pixels
+	//double TileWidthInX = ViewPortCentreTileboundsXY.right - ViewPortCentreTileboundsXY.left;
+	//double distanceFromLeftEdgeInX = POI_Pxy.x - ViewPortCentreTileboundsXY.left;  //from POI to edge
+	//double proportionX = distanceFromLeftEdgeInX/TileWidthInX;
+	//int xFromLeftInPixels = TILESIZE * proportionX;
+	//mx_offset = xFromLeftInPixels - HALF_TILESIZE;
 
 
-	ProjWidth = ProjLeft - ProjRight;
-	ProjHeight = ProjTop - ProjBottom;
+	double TileWidthInX = ViewPortCentreTileboundsXY.left - ViewPortCentreTileboundsXY.right;
+	double distanceFromLeftEdgeInX = ViewPortCentreTileboundsXY.left - POI_Pxy.x;  //from POI to edge
+	double proportionX = distanceFromLeftEdgeInX/TileWidthInX;
+	int xFromLeftInPixels = TILESIZE * proportionX;
+	mx_offset = xFromLeftInPixels - HALF_TILESIZE;
 
-	if (CB_Debug->IsChecked) {
-		pme("VP Centre: Lat %f  Long %f  Bounds: west: %f east: %f", ViewPortCentreLat, ViewPortCentreLong, ViewPortCentreTilebounds.west,ViewPortCentreTilebounds.east);
-		pme("Long delta: %f", deltaLong);
-		pme("VP Centre prop: %f", proportionLong);
-		pme("VP Centre: x from centre: %d",xFromCentre);
-		pme("VP Centre y from centre: %d",yFromCentre);
-		pme("x offset: %d  y offset: %d",mx_offset, my_offset);
-	}
+
+    //pme("mx_offset: %d  my_offset: %d",mx_offset,my_offset);
+
+
+	//pme("CalcOS:POI deltaX = %f   POI mx_offset: %d   POI xFromLeftInPixels:%d",distanceFromLeftEdgeInX, mx_offset,xFromLeftInPixels);
 }
 
 
-void  TForm1::MouseToLatLong(float x, float y)
+//calculates 3x3 bounding box based on centre tile x,y,z
+//calculates width and height of 3x3 in projection coords
+//calculates Projection Units per pixel in 2D
+//only needs to be called once and then whenever the centre tile changes
+void  __fastcall TForm1::Calc3x3UnshiftedProjection()
 {
-	pmeMouse("Mse xy: %f %f", x ,y);
+	//struct Tile TopLeft and BottomRight
+   	struct Tile TL3x3, BR3x3;
+		TL3x3.x = m_ViewPortCentreTile.x - 1;
+		TL3x3.y = m_ViewPortCentreTile.y - 1;
+		TL3x3.z= zm;
 
-	double w = TImage1->Width;
-	double h = TImage1->Height;
-	pme("w: %f h: %f Mse from Centre: %f %f",w,h, w/2 -x, h/2-y);
+		BR3x3.x = m_ViewPortCentreTile.x + 1;
+		BR3x3.y = m_ViewPortCentreTile.y + 1;
+		BR3x3.z= zm;
+
+	// Get the Proj Bounding box of the unshifted 3x3
+	m_3x3BBox = xy_bounds(TL3x3);   // Get the web mercator bounding box of a tile  //only top and left are needed at this point
+
+	Bbox BR_XY = xy_bounds(BR3x3);    // Get the web mercator bounding box of a tile
+	m_3x3BBox.right = BR_XY.right;
+	m_3x3BBox.bottom = BR_XY.bottom;
+
+	m_X_3x3Width  = (m_3x3BBox.left - m_3x3BBox.right);
+	m_Y_3x3Height = (m_3x3BBox.top  - m_3x3BBox.bottom);
+
+	m_ProjPerHoriPixel = m_X_3x3Width / TILESIZEx3;
+	m_ProjPerVertPixel = m_Y_3x3Height / TILESIZEx3;
+
+	//pmeMouse("Widths: Y: %5.0f  X: %5.01f", m_Y_3x3Height,m_X_3x3Width);
+	//pmeMouse("Non-Shifted:BB top: %5.0f  bottom: %5.0f  left: %5.0f   right: %5.0f",m_3x3BBox.top,m_3x3BBox.bottom,m_3x3BBox.left,m_3x3BBox.right);
+}
 
 
-	float s = TImage1->Scale->X;
-	pmeMouse("Panel size: %f %f  scale: %f",w,h,s);
-	pmeMouse("Mse scaled xy: %f %f", x*s ,y*s);
+//calculates Viewport Bounding box
+// used by LLtoVPposition()
+//used by MouseToLatLong()
+void __fastcall TForm1::CalcViewPortShiftedProjection()
+{
+	//offsets are in mouse pixels
+	double HorizontalOffsetInProjection = (double)(mx_offset)*m_ProjPerHoriPixel;
+	double VPLeftProj = m_3x3BBox.left - HorizontalOffsetInProjection;
 
-	double PX = ProjLeft + double(x)/w *s * ProjWidth;
-	double PY = ProjTop + double(y)/h * s * ProjHeight;
-	pmeMouse("mseProj X:%f  Y:%f",PX, PY);
-	LngLat LL = lnglat(PX, PY);
-    pmeMouse("lat: %f  Long: %f", LL.lat, LL.lng);
+	double VerticalOffsetInProjection = (double)(my_offset)*m_ProjPerVertPixel;
+	double VPTopProj = m_3x3BBox.top - VerticalOffsetInProjection;
 
 
+	double VPRightProj  = VPLeftProj -  m_X_3x3Width;
+	double VPBottomProj = VPTopProj  -  m_Y_3x3Height;
 
+	m_ViewPortBBox.left  = VPLeftProj;
+	m_ViewPortBBox.top   = VPTopProj;
+	m_ViewPortBBox.right = VPRightProj;
+	m_ViewPortBBox.bottom = VPBottomProj;
+
+	//pmeMouse("Shifted:BB top: %5.0f  bottom: %5.0f  left: %5.0f   right: %5.0f",m_ViewPortBBox.top,m_ViewPortBBox.bottom,m_ViewPortBBox.left,m_ViewPortBBox.right);
+
+}
+
+
+//builds the m_BitMap5x5
+//only called once or when the map pans beyond a tile
+void  TForm1::Build5x5BitMap()
+{
+	if (MasterBitmapLoaded == true) return;
+	//only build the 5 x 5 master bitmap if its not already in memory
+		MasterBitmapLoaded = true;
+		m_BitMap5x5 = new TBitmap(TILESIZE * 5,TILESIZE * 5);
+
+		m_BitMap5x5->Canvas->BeginScene();
+			//build a 5 x 5 bitmap
+			for (int row=0;row < 5; row++) {  //these are slippy map tile indexes
+				for (int column=0; column <5; column++) {//these are slippy map tile indexes
+
+					int x = m_ViewPortCentreTile.x + column - 2;
+					int y = m_ViewPortCentreTile.y + row - 2;
+
+					TBitmap *bmp1 = GetTileBitmap(zm,x,y);
+					m_BitMap5x5->CopyFromBitmap(bmp1, TRect(0,0,TILESIZE,TILESIZE), column * TILESIZE,row*TILESIZE);
+
+					//bmp1->Free(); ////To DO - this causes a crash. Why? it shouldn't be needed after its copied
+
+					int r[] = {0,TILESIZE,2*TILESIZE,3*TILESIZE,4*TILESIZE};
+					TRect Dest( r[column], r[row], TILESIZE + r[column], TILESIZE+r[row]);
+
+					if (CB_TileOutlines->IsChecked) {
+						//draw outline around each tile
+						m_BitMap5x5->Canvas->Stroke->Kind = TBrushKind::Solid;
+						m_BitMap5x5->Canvas->Stroke->Color = claBlue;
+						m_BitMap5x5->Canvas->Stroke->Thickness  = 1.0;
+						m_BitMap5x5->Canvas->DrawRect(Dest, 0, 0, AllCorners, 1.0);
+					}
+					if (CB_TileCoords->IsChecked) {
+						//text overlay, centere3d in Dest rectangle
+						char buf[100];
+						sprintf(buf,"%d/%d/%d",zm,y,x);
+						m_BitMap5x5->Canvas->Fill->Color = claBlack;
+						m_BitMap5x5->Canvas->FillText(Dest, buf, false, 100, TFillTextFlags() << TFillTextFlag::RightToLeft, TTextAlign::Center,TTextAlign::Center);
+					}
+				}
+			}
+		m_BitMap5x5->Canvas->EndScene();
 }
 
 TBitmap  *TForm1::GetTileBitmap(int z,int x,int y)
@@ -234,67 +289,20 @@ TBitmap  *TForm1::GetTileBitmap(int z,int x,int y)
 	return bmp1;
 }
 
-void  TForm1::Build5x5BitMap()
-{
-	if (MasterBitmapLoaded == false) {//only build the 5 x 5 master bitmap if its not already in memory
-		MasterBitmapLoaded = true;
-		m_BitMap5x5 = new TBitmap(TILESIZE * 5,TILESIZE * 5);
 
-		m_BitMap5x5->Canvas->BeginScene();
-			//build a 5 x 5 bitmap
-			for (int row=0;row < 5; row++) {  //these are slippy map tile indexes
-				for (int column=0; column <5; column++) {//these are slippy map tile indexes
-
-					int x = m_centreColumn + column - 2;
-					int y = m_centreRow + row - 2;
-
-					TBitmap *bmp1 = GetTileBitmap(zm,x,y);
-					m_BitMap5x5->CopyFromBitmap(bmp1, TRect(0,0,TILESIZE,TILESIZE), column * TILESIZE,row*TILESIZE);
-
-					//bmp1->Free(); ////To DO - this causes a crash. Why? it shouldn't be needed after its copied
-
-					int r[] = {0,TILESIZE,2*TILESIZE,3*TILESIZE,4*TILESIZE};
-					TRect Dest( r[column], r[row], TILESIZE + r[column], TILESIZE+r[row]);
-
-					if (CB_TileOutlines->IsChecked) {
-						//draw outline around each tile
-						m_BitMap5x5->Canvas->Stroke->Kind = TBrushKind::Solid;
-						m_BitMap5x5->Canvas->Stroke->Color = claBlue;
-						m_BitMap5x5->Canvas->Stroke->Thickness  = 1.0;
-						m_BitMap5x5->Canvas->DrawRect(Dest, 0, 0, AllCorners, 1.0);
-					}
-					if (CB_TileCoords->IsChecked) {
-						//text overlay, centere3d in Dest rectangle
-						char buf[100];
-						sprintf(buf,"%d/%d/%d",zm,y,x);
-						m_BitMap5x5->Canvas->Fill->Color = claBlack;
-						m_BitMap5x5->Canvas->FillText(Dest, buf, false, 100, TFillTextFlags() << TFillTextFlag::RightToLeft, TTextAlign::Center,TTextAlign::Center);
-					}
-				}
-			}
-		m_BitMap5x5->Canvas->EndScene();
-	}
-}
-
+//draws the background map base layer
+//draws a 3 tile by 3 tile bitmap from within an enclosing 5 by 5 tile bitmap shifted by POI offset
 void  TForm1::DrawMap()
 {
-    //g_Left g_Top are the upper corner of the 3 x 3 tile map to be displayed on screen
-	//640 is centre of 5 x 5 bitmap: 5 x 256 = 1024 /2 = 640
-	//640 + mx_offset sh
-	//384 is half of the 3 x 3 (3 x 257 = 768 / 2 = 384)
-	g_Left = (640 + mx_offset) - 384;    //640 is half of 1280 = 5 *256
-	g_Top  = (640 + my_offset) - 384;
-
-	if (CB_Debug->IsChecked) {
-		pme("g_Left: %d   g_Top: %d",g_Left, g_Top);
-	}
-
+    //g_Left g_Top are the upper corner (in pixels) of the 3 x 3 tile map to be displayed on screen when the 3x3 is shifted by the offset from centre POI
+	g_Left = TILESIZE + mx_offset;
+	g_Top  = TILESIZE + my_offset;
 
     //draw the shifted master bitmap
 	TImage1->Bitmap->Canvas->BeginScene();
 		TImage1->Bitmap->Canvas->Clear(0);
-		TRect Source(g_Left, g_Top, g_Left + TILESIZEx3, g_Top + TILESIZEx3);
-		TImage1->Bitmap->Canvas->DrawBitmap(m_BitMap5x5, Source, TRect(0,0,TILESIZEx3,TILESIZEx3), 0.75, false );
+		TRect SourceRect(g_Left, g_Top, g_Left + TILESIZEx3, g_Top + TILESIZEx3);
+		TImage1->Bitmap->Canvas->DrawBitmap(m_BitMap5x5, SourceRect, TRect(0,0,TILESIZEx3,TILESIZEx3), 0.7, false ); //2nd last param is opacity
 
 		if (CB_BigX->IsChecked) {
 			//Draw X through entire map
@@ -308,7 +316,6 @@ void  TForm1::DrawMap()
 }
 
 //from https://learncplusplus.org/learn-about-bitmap-operations-in-c-builder-firemonkey/
-
 
 
 void __fastcall TForm1::TImage1MouseWheel(TObject *Sender, TShiftState Shift, int WheelDelta, bool &Handled)
@@ -343,29 +350,32 @@ void __fastcall TForm1::TImage1MouseWheel(TObject *Sender, TShiftState Shift, in
 
 void __fastcall TForm1::TImage1MouseMove(TObject *Sender, TShiftState Shift, float X, float Y)
 {
-	if (CB_Debug->IsChecked) pme("Mse xy: %f %f", X, Y);
+	LngLat LL = MouseToLatLong(X,Y);
 
-	MouseToLatLong(X,Y);
+	if (CB_Debug->IsChecked) pmeMouse(">>MM: Mse xy: %f %f\r\n%5.2f %6.2f", X, Y, LL.lat, LL.lng);
 
-
+	XY mxy = xy(LL.lng, LL.lat);
+	sprintf(mouseOverlayText,"%d %d\r\n%5.4f %6.4f\r\n%5.0f  %5.0f", (int)X, (int)Y, LL.lat, LL.lng,mxy.x,mxy.y);
 
 	if (dragging) {
 		int dx =	mouse_down_at_x - (int)X;
 		int dy =	mouse_down_at_y - (int)Y;
-		mouse_down_at_x=X;
-		mouse_down_at_y=Y;
-		//                  0  1    2    3     4     5     6     7     8      9       10      11     12     13      14
-		float panRates[] = {0, 0.1, 0.2, 0.07, 0.05, 0.02, 0.02, 0.01, 0.005, 0.0025, 0.0025, 0.001, 0.001, 0.0005, 0.0004  };
-        float dd=0;
-		if (zm>14) dd = .0001;
-		else dd = panRates[zm];
-        //pme("dd: %1.4f",dd);
+		mouse_down_at_x = X;
+		mouse_down_at_y = Y;
 
-		ViewPortCentreLong = ViewPortCentreLong + dx * dd;
-		ViewPortCentreLat = ViewPortCentreLat  - dy * dd;
-		DoDrawAll();
+		double deltaPX = m_ProjPerHoriPixel*dx;
+		double deltaPY = m_ProjPerVertPixel*dy;
+
+		// Convert longtitude and latitude to web mercator x, y.
+		XY vpXY = xy(VPCentreLL.lng, VPCentreLL.lat);
+		vpXY.x -= deltaPX;
+		vpXY.y -= deltaPY;
+
+		// update the centre tile LL
+		VPCentreLL = lnglat(vpXY.x, vpXY.y);
 	}
 
+	DoDrawAll();
 }
 //---------------------------------------------------------------------------
 
@@ -376,11 +386,20 @@ void __fastcall TForm1::TImage1MouseDown(TObject *Sender, TMouseButton Button, T
 	if (Button ==  TMouseButton::mbLeft)
 	{
 		dragging=true;
-        Panel1->Cursor = crHandPoint;
+		//Panel1->Cursor = crHandPoint;
 	}
+	else if (Button ==  TMouseButton::mbRight)
+	{
+		LngLat LL = MouseToLatLong(X,Y);
+		HomeLong = LL.lng;
+		HomeLat = LL.lat;
+        DoViewResetToHome();
+
+    }
+
 	mouse_down_at_x=(int)X;
 	mouse_down_at_y=(int)Y;
-	if (CB_Debug->IsChecked) pme("Mouse Down at %f %f",X,Y);
+	if (CB_Debug->IsChecked) pmeMouse("Mouse Down at %f %f",X,Y);
 
 }
 //---------------------------------------------------------------------------
@@ -389,10 +408,10 @@ void __fastcall TForm1::TImage1MouseUp(TObject *Sender, TMouseButton Button, TSh
 		  float X, float Y)
 {
 	dragging = false;
-	Panel1->Cursor = crDefault;
+	//Panel1->Cursor = crDefault;
 	mouse_down_at_x = 0;
 	mouse_down_at_y = 0;
-	if (CB_Debug->IsChecked) pme("Mouse Up at %f %f",X,Y);
+	if (CB_Debug->IsChecked) pmeMouse("Mouse Up at %f %f",X,Y);
 
 }
 //---------------------------------------------------------------------------
@@ -411,9 +430,9 @@ void __fastcall TForm1::BN_QuitClick(TObject *Sender)
 
 void __fastcall TForm1::DoViewResetToHome()
 {
-	zm = 7;
-	ViewPortCentreLong = OttawaLong;
-	ViewPortCentreLat = OttawaLat;
+	//zm = 7;
+	VPCentreLL.lng = HomeLong;
+	VPCentreLL.lat = HomeLat;
 	//TImage1->Scale->X=1.35;
 	//TImage1->Scale->Y=1.35;
 	ClearMapCache();
@@ -449,7 +468,7 @@ void __fastcall TForm1::RefreshMap(TObject *Sender)    //map type changed
 
 static double DEG2RAD = M_PI / 180.0;
 
-void __fastcall TForm1::DrawBox(TCanvas *c,float x,float y,float hdg,unsigned int tc)
+void __fastcall TForm1::DrawTrack(TCanvas *c,float x,float y,float hdg,unsigned int tc)
 {
 	const int s = 16;
 	const int hs = s/2;
@@ -467,15 +486,43 @@ void __fastcall TForm1::DrawBox(TCanvas *c,float x,float y,float hdg,unsigned in
 	TPointF myPoint2 = TPointF(x2,y2);
 	c->DrawLine(myPoint,myPoint2,1.0);
 	c->DrawLine(myPoint2,myPoint2,1.0);
-    pme("Hdg: %f",hdg);
+	//pme("Hdg: %f",hdg);
+}
+
+void __fastcall TForm1::DrawRect(TCanvas *c,TRect MyRect, unsigned int tc)
+{
+	c->Stroke->Kind = TBrushKind::Solid;
+	c->Stroke->Color = tc;
+	c->Stroke->Thickness  = 1.0;
+	c->DrawRect(MyRect, 0, 0, AllCorners, 1);
+}
+
+void __fastcall TForm1::FillRect(TCanvas *c,TRect MyRect, unsigned int tc)
+{
+	//c->Stroke->Kind = TBrushKind::Solid;
+	c->Fill->Color = tc;
+	//c->Stroke->Thickness  = 1.0;
+	c->FillRect(MyRect, 0, 0, AllCorners, 1);
 }
 
 
-
+double tlat = 45.0;
+double tlon = -75.0;
+double hdg = 45.0;
 
 void __fastcall TForm1::Timer1Timer(TObject *Sender)
 {
-	DoDrawAll();
+	//DoDrawAll();
+
+	DrawMap();
+	DrawNotes();
+	DrawTgt();
+
+	tlat-=.01;
+	tlon+=.01;
+	hdg+=10;
+	if (hdg>=360) hdg=0;
+
 }
 //---------------------------------------------------------------------------
 
@@ -493,54 +540,109 @@ void __fastcall TForm1::BN_StartStopClick(TObject *Sender)
 }
 
 
-int dx=0;
+void __fastcall TForm1::DrawNotes()
+{
+
+	TRect Dest( 10, 10, TILESIZE, TILESIZE/2);
+	TImage1->Bitmap->Canvas->BeginScene();
+	TImage1->Bitmap->Canvas->Fill->Color = claCrimson;
+	DrawRect(TImage1->Bitmap->Canvas,Dest,claWhite);
+	FillRect(TImage1->Bitmap->Canvas,Dest,claBlack);
+
+	TImage1->Bitmap->Canvas->Font->Size = 20.0;
+
+	TImage1->Bitmap->Canvas->Fill->Color = claWhite;
+
+	TImage1->Bitmap->Canvas->FillText(Dest, mouseOverlayText, true, 100, TFillTextFlags(), TTextAlign::Center,TTextAlign::Center);
+	TImage1->Bitmap->Canvas->EndScene();
+
+}
+
+
 
 void __fastcall TForm1::DrawTgt()
 {
-	double tlat = 45.099;
-	double tlon = -75.9667;
-
-	XY txy = xy(tlon,tlat);
-
-	int mx = -(txy.x - ProjLeft)/rHoriPerPixel;
-	int my = -(txy.y - ProjTop)/rVertPerPixel;
-
-
-	mx+=dx;
-	my+=dx;
-	dx+=4;
-
-	mx=2*mx; //scaling problem to be researched
-	my = 2*my;
-	pme("tgt loc: %d %d",mx,my);
-
-
+	XY mxy = LLtoVPposition(tlat,tlon);
 
 	TImage1->Bitmap->Canvas->BeginScene();
-		DrawBox(TImage1->Bitmap->Canvas,mx,my,hdg,claBlack);
+	DrawTrack(TImage1->Bitmap->Canvas,mxy.x,mxy.y,hdg,claBlack);
+	//DrawTrack(TImage1->Bitmap->Canvas,mxy.y,mxy.x,hdg,claBlack);
 	TImage1->Bitmap->Canvas->EndScene();
-
-	int w = TImage1->Width;
-	int h = TImage1->Height;
-	pme("Width: %d  Height: %d",w,h);
-	hdg+=15;
-	if (hdg>=360) hdg=0;
-
 }
 
 void __fastcall TForm1::BN_ClearClick(TObject *Sender)
 {
-    MemoDebug->Lines->Clear();
+	MemoDebug->Lines->Clear();
 }
 //---------------------------------------------------------------------------
 
 void __fastcall TForm1::Panel1Exit(TObject *Sender)
 {
 	dragging=false;
-	Panel1->Cursor = crDefault;
 }
 //---------------------------------------------------------------------------
 
+
+
+
+void __fastcall TForm1::BN_ZeroClick(TObject *Sender)
+{
+	mx_offset=0;
+	my_offset=0;
+		ClearMapCache();
+	DoDrawAll();
+}
+//---------------------------------------------------------------------------
+
+
+
+XY __fastcall TForm1::LLtoVPposition(double lat, double lng)
+{
+	XY thisXY = xy(lng, lat);  //get the Mercator Projection
+	//pme("--------------------------");
+	//pme("=>Tgt: %5.2f  %6.2f",lat,lng);
+	//pme("=>Proj: x:%5.0f y: %5.0f",thisXY.x, thisXY.y);
+
+
+	//double deltaXFromLeft = thisXY.x - m_ViewPortBBox.left ;
+	double deltaXFromLeft = m_ViewPortBBox.left - thisXY.x;
+
+	double x = (deltaXFromLeft / m_ProjPerHoriPixel);
+
+
+	double deltaYFromTop =  m_ViewPortBBox.top - thisXY.y;
+	double y = (deltaYFromTop / m_ProjPerVertPixel);
+
+	//pme("***VPort: left: %5.0f  top: %5.0f",m_ViewPortBBox.left, m_ViewPortBBox.top);
+	//pme("***dXfromLeft: %5.0f  dyFromTop: %5.0f",deltaXFromLeft, deltaYFromTop);
+	//pme("***x: %5.0f  y: %5.0f",x, y);
+
+
+	thisXY.x = x;
+	thisXY.y = y;
+	return thisXY;
+
+}
+
+LngLat TForm1::MouseToLatLong(float x, float y)
+{
+	double scale;// = 2.0;
+	int IH = TImage1->Height;
+	int IW = TImage1->Width;
+	scale = 768.0/((double)IH);
+	pme("IHeight: %d  IWidth: %d  Scale is %f",IH,IW,scale);
+
+	double PX = m_ViewPortBBox.left - (m_ProjPerHoriPixel * x * scale);
+	double PY = m_ViewPortBBox.top - (m_ProjPerVertPixel * y * scale);
+
+	LngLat LL = lnglat(PX, PY);
+
+	pme("mse xy: %2.0f %2.0f",x,y);
+	pme("mse Px: %5.0f  mse Py: %5.0f",PX,PY);
+	//pmeMouse("Mouse: PY:%5.0f PX:%5.0f  Lat:%5.1f  Lng: %5.1f",PY,PX,LL.lat,LL.lng);
+
+	return LL;
+}
 
 
 
