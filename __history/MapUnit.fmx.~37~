@@ -2,8 +2,8 @@ object Form1: TForm1
   Left = 0
   Top = 0
   Caption = 'EMB Mapping Base - 7 Jul 2024'
-  ClientHeight = 624
-  ClientWidth = 1032
+  ClientHeight = 748
+  ClientWidth = 920
   FormFactor.Width = 320
   FormFactor.Height = 480
   FormFactor.Devices = [Desktop]
@@ -13,21 +13,21 @@ object Form1: TForm1
     DataDetectorTypes = []
     StyledSettings = [Family, Style, FontColor]
     TextSettings.Font.Size = 10.000000000000000000
-    Position.X = 8.000000000000000000
-    Position.Y = 420.000000000000000000
-    Size.Width = 625.000000000000000000
-    Size.Height = 197.000000000000000000
+    Position.X = 248.000000000000000000
+    Position.Y = 532.000000000000000000
+    Size.Width = 368.000000000000000000
+    Size.Height = 192.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 0
-    Viewport.Width = 621.000000000000000000
-    Viewport.Height = 193.000000000000000000
+    Viewport.Width = 364.000000000000000000
+    Viewport.Height = 188.000000000000000000
   end
   object BitmapAnimation1: TBitmapAnimation
     Duration = 0.200000002980232200
   end
   object BN_Quit: TButton
-    Position.X = 407.000000000000000000
-    Position.Y = 370.000000000000000000
+    Position.X = 146.000000000000000000
+    Position.Y = 603.000000000000000000
     Size.Width = 80.000000000000000000
     Size.Height = 33.000000000000000000
     Size.PlatformDefault = False
@@ -36,72 +36,45 @@ object Form1: TForm1
     OnClick = BN_QuitClick
   end
   object BN_StartStop: TButton
-    Position.X = 407.000000000000000000
-    Position.Y = 208.000000000000000000
+    Position.X = 146.000000000000000000
+    Position.Y = 543.000000000000000000
     Size.Width = 81.000000000000000000
     Size.Height = 22.000000000000000000
     Size.PlatformDefault = False
-    TabOrder = 4
+    TabOrder = 3
     Text = 'Start'
     OnClick = BN_StartStopClick
   end
   object Timer1: TTimer
     Enabled = False
     OnTimer = Timer1Timer
-    Left = 504
-    Top = 232
-  end
-  object BN_ZoomIn: TButton
-    Position.X = 407.000000000000000000
-    Position.Y = 238.000000000000000000
-    Size.Width = 81.000000000000000000
-    Size.Height = 22.000000000000000000
-    Size.PlatformDefault = False
-    TabOrder = 5
-    Text = 'Zoom In'
-  end
-  object BN_ZoomOut: TButton
-    Position.X = 407.000000000000000000
-    Position.Y = 268.000000000000000000
-    Size.Width = 81.000000000000000000
-    Size.Height = 22.000000000000000000
-    Size.PlatformDefault = False
-    TabOrder = 3
-    Text = 'Zoom Out'
-    object BN_Zero: TButton
-      Position.Y = 32.000000000000000000
-      Size.Width = 81.000000000000000000
-      Size.Height = 22.000000000000000000
-      Size.PlatformDefault = False
-      TabOrder = 3
-      Text = 'Zero Offsets'
-      OnClick = BN_ZeroClick
-    end
+    Left = 168
+    Top = 680
   end
   object CB_Debug: TCheckBox
-    Position.X = 308.000000000000000000
-    Position.Y = 397.000000000000000000
+    Position.X = 146.000000000000000000
+    Position.Y = 644.000000000000000000
     Size.Width = 73.000000000000000000
     Size.Height = 19.000000000000000000
     Size.PlatformDefault = False
-    TabOrder = 7
+    TabOrder = 5
     Text = 'Debug'
   end
   object BN_Clear: TButton
-    Position.X = 408.000000000000000000
-    Position.Y = 340.000000000000000000
-    TabOrder = 8
+    Position.X = 146.000000000000000000
+    Position.Y = 573.000000000000000000
+    TabOrder = 6
     Text = 'Clear'
     OnClick = BN_ClearClick
   end
   object GP_MapControl: TGroupBox
-    Position.X = 407.000000000000000000
-    Position.Y = 8.000000000000000000
+    Position.X = 8.000000000000000000
+    Position.Y = 532.000000000000000000
     Size.Width = 130.000000000000000000
     Size.Height = 192.000000000000000000
     Size.PlatformDefault = False
     Text = 'Map Control'
-    TabOrder = 9
+    TabOrder = 7
     object RB_ARCGIS: TRadioButton
       Position.X = 8.000000000000000000
       Position.Y = 16.000000000000000000
@@ -144,7 +117,7 @@ object Form1: TForm1
     object CB_TileCoords: TCheckBox
       IsChecked = True
       Position.X = 8.000000000000000000
-      Position.Y = 107.000000000000000000
+      Position.Y = 108.000000000000000000
       Size.Width = 120.000000000000000000
       Size.Height = 16.000000000000000000
       Size.PlatformDefault = False
@@ -179,14 +152,14 @@ object Form1: TForm1
     DataDetectorTypes = []
     StyledSettings = [Family, Style, FontColor]
     TextSettings.Font.Size = 10.000000000000000000
-    Position.X = 641.000000000000000000
-    Position.Y = 28.000000000000000000
-    Size.Width = 376.000000000000000000
-    Size.Height = 588.000000000000000000
+    Position.X = 525.000000000000000000
+    Position.Y = 8.000000000000000000
+    Size.Width = 380.000000000000000000
+    Size.Height = 201.000000000000000000
     Size.PlatformDefault = False
-    TabOrder = 11
-    Viewport.Width = 372.000000000000000000
-    Viewport.Height = 584.000000000000000000
+    TabOrder = 9
+    Viewport.Width = 376.000000000000000000
+    Viewport.Height = 197.000000000000000000
   end
   object TImage1: TImage
     MultiResBitmap.Height = 768
@@ -327,12 +300,12 @@ object Form1: TForm1
           'C:\source\test\good_EMB_WebMap\Win32\Debug\tiles\white512x512.pn' +
           'g'
       end>
-    Anchors = []
+    Anchors = [akLeft, akTop, akRight, akBottom]
     Locked = True
     Position.X = 5.000000000000000000
-    Position.Y = 9.000000000000000000
-    Size.Width = 384.000000000000000000
-    Size.Height = 384.000000000000000000
+    Position.Y = 12.000000000000000000
+    Size.Width = 512.000000000000000000
+    Size.Height = 512.000000000000000000
     Size.PlatformDefault = False
     OnMouseDown = TImage1MouseDown
     OnMouseMove = TImage1MouseMove

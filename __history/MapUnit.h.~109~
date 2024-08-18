@@ -34,8 +34,6 @@ __published:	// IDE-managed Components
 	TTimer *Timer1;
 	TButton *BN_StartStop;
 	TButton *BN_Home;
-	TButton *BN_ZoomIn;
-	TButton *BN_ZoomOut;
 	TRadioButton *RB_GT;
 	TRadioButton *RB_ARCGIS;
 	TRadioButton *RB_OSM;
@@ -46,7 +44,6 @@ __published:	// IDE-managed Components
 	TCheckBox *CB_TileCoords;
 	TCheckBox *CB_BigX;
 	TMemo *TM_Mouse;
-	TButton *BN_Zero;
 	void __fastcall TImage1MouseWheel(TObject *Sender, TShiftState Shift, int WheelDelta,
 		  bool &Handled);
 	void __fastcall TImage1MouseMove(TObject *Sender, TShiftState Shift, float X, float Y);
@@ -89,7 +86,7 @@ public:		// User declarations
 
 	void  pmeTileInfo(Tile t);
 
-    LngLat MouseToLatLong(float x, float y);
+    LngLat ViewPortXYToLatLong(float x, float y);
 
 	const int HALF_TILESIZE = 128;
 	const int TILESIZE = 256;
@@ -111,20 +108,16 @@ public:		// User declarations
 	double rHoriPerPixel;
 	double rVertPerPixel;
 
-	//int m_centreRow = 0;
-	//int m_centreColumn = 0;
-	const int _centreRow =45;
-	const int _centreColumn = 37;
+	//const int _centreRow;// =45;
+	//const int _centreColumn;// = 37;
 
-	double OttawaLat = 45.400;
-	double OttawaLong = -75.690;
+	double HomeLat = 45.27630;
+	double HomeLong = -75.88454;
 
 	int zm = 7;
 	int mx_offset;
 	int my_offset;
-	//double ViewPortCentreLat = 45.400;
-	//double ViewPortCentreLong = -75.690;
-    LngLat VPCentre = {45.4,-75.690};
+	LngLat VPCentreLL = {HomeLat,HomeLong};
     XY VPCentreProj;
 
 	int g_Left;
@@ -146,7 +139,7 @@ public:		// User declarations
 	void  __fastcall Calc3x3UnshiftedProjection();
 	void __fastcall CalcViewPortShiftedProjection();
 	void __fastcall DrawNotes();
-    char notes[200];
+    char mouseOverlayText[200];
 
 	Tile m_ViewPortCentreTile;
 
@@ -154,7 +147,7 @@ public:		// User declarations
 	double m_X_3x3Width;  //width in Projection units of current viewpoer
 	double m_Y_3x3Height; //height in Projection units of current viewpoer
 
-	Bbox ViewPortBBox; //web mercator bounding box of viewport
+	Bbox m_ViewPortBBox; //web mercator bounding box of viewport
 	double m_ProjPerHoriPixel;
 	double m_ProjPerVertPixel;
 

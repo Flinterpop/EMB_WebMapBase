@@ -178,8 +178,8 @@ void  __fastcall TForm1::Calc3x3UnshiftedProjection()
 	m_X_3x3Width  = (m_3x3BBox.left - m_3x3BBox.right);
 	m_Y_3x3Height = (m_3x3BBox.top  - m_3x3BBox.bottom);
 
-	m_ProjPerHoriPixel = m_X_3x3Width / TILESIZEx3;
-	m_ProjPerVertPixel = m_Y_3x3Height / TILESIZEx3;
+	m_ProjPerHoriPixel = m_X_3x3Width / (TILESIZE*3);
+	m_ProjPerVertPixel = m_Y_3x3Height / (TILESIZE*3);
 
 	//pmeMouse("Widths: Y: %5.0f  X: %5.01f", m_Y_3x3Height,m_X_3x3Width);
 	//pmeMouse("Non-Shifted:BB top: %5.0f  bottom: %5.0f  left: %5.0f   right: %5.0f",m_3x3BBox.top,m_3x3BBox.bottom,m_3x3BBox.left,m_3x3BBox.right);
@@ -301,16 +301,16 @@ void  TForm1::DrawMap()
     //draw the shifted master bitmap
 	TImage1->Bitmap->Canvas->BeginScene();
 		TImage1->Bitmap->Canvas->Clear(0);
-		TRect SourceRect(g_Left, g_Top, g_Left + TILESIZEx3, g_Top + TILESIZEx3);
-		TImage1->Bitmap->Canvas->DrawBitmap(m_BitMap5x5, SourceRect, TRect(0,0,TILESIZEx3,TILESIZEx3), 0.7, false ); //2nd last param is opacity
+		TRect SourceRect(g_Left, g_Top, g_Left + (TILESIZE*3), g_Top + (TILESIZE*3));
+		TImage1->Bitmap->Canvas->DrawBitmap(m_BitMap5x5, SourceRect, TRect(0,0,(TILESIZE*3),(TILESIZE*3)), 0.7, false ); //2nd last param is opacity
 
 		if (CB_BigX->IsChecked) {
 			//Draw X through entire map
 			TImage1->Bitmap->Canvas->Stroke->Kind = TBrushKind::Solid;
 			TImage1->Bitmap->Canvas->Stroke->Color = claRed;
 			TImage1->Bitmap->Canvas->Stroke->Thickness  = 1.0;
-			TImage1->Bitmap->Canvas->DrawLine(TPointF(0,0),TPointF(TILESIZEx3, TILESIZEx3),1.0);
-			TImage1->Bitmap->Canvas->DrawLine(TPointF(TILESIZEx3, 0),TPointF(0, TILESIZEx3),1.0);
+			TImage1->Bitmap->Canvas->DrawLine(TPointF(0,0),TPointF((TILESIZE*3), (TILESIZE*3)),1.0);
+			TImage1->Bitmap->Canvas->DrawLine(TPointF((TILESIZE*3), 0),TPointF(0, (TILESIZE*3)),1.0);
 		}
 	TImage1->Bitmap->Canvas->EndScene();
 }
@@ -350,7 +350,7 @@ void __fastcall TForm1::TImage1MouseWheel(TObject *Sender, TShiftState Shift, in
 
 void __fastcall TForm1::TImage1MouseMove(TObject *Sender, TShiftState Shift, float X, float Y)
 {
-	LngLat LL = MouseToLatLong(X,Y);
+	LngLat LL = ViewPortXYToLatLong(X,Y);
 
 	if (CB_Debug->IsChecked) pmeMouse(">>MM: Mse xy: %f %f\r\n%5.2f %6.2f", X, Y, LL.lat, LL.lng);
 
@@ -390,7 +390,7 @@ void __fastcall TForm1::TImage1MouseDown(TObject *Sender, TMouseButton Button, T
 	}
 	else if (Button ==  TMouseButton::mbRight)
 	{
-		LngLat LL = MouseToLatLong(X,Y);
+		LngLat LL = ViewPortXYToLatLong(X,Y);
 		HomeLong = LL.lng;
 		HomeLat = LL.lat;
         DoViewResetToHome();
@@ -430,7 +430,7 @@ void __fastcall TForm1::BN_QuitClick(TObject *Sender)
 
 void __fastcall TForm1::DoViewResetToHome()
 {
-	zm = 7;
+	//zm = 7;
 	VPCentreLL.lng = HomeLong;
 	VPCentreLL.lat = HomeLat;
 	//TImage1->Scale->X=1.35;
@@ -509,6 +509,7 @@ void __fastcall TForm1::FillRect(TCanvas *c,TRect MyRect, unsigned int tc)
 double tlat = 45.0;
 double tlon = -75.0;
 double hdg = 45.0;
+int tnum=0;
 
 void __fastcall TForm1::Timer1Timer(TObject *Sender)
 {
@@ -516,15 +517,38 @@ void __fastcall TForm1::Timer1Timer(TObject *Sender)
 
 	DrawMap();
 	DrawNotes();
-	DrawTgt();
 
-	tlat-=.01;
-	tlon+=.01;
+	tnum=0;
+	DrawTgt();
+	++tnum;   	DrawTgt();
+	++tnum;   	DrawTgt();
+	++tnum;   	DrawTgt();
+	++tnum;   	DrawTgt();
+	++tnum;   	DrawTgt();
+	++tnum;   	DrawTgt();
+
+
+	tlat-=.001;
+	tlon+=.001;
 	hdg+=10;
 	if (hdg>=360) hdg=0;
 
 }
 //---------------------------------------------------------------------------
+
+
+void __fastcall TForm1::DrawTgt()
+{
+	XY mxy = LLtoVPposition(tlat,tlon);
+
+    mxy.x +=tnum*5;
+	TImage1->Bitmap->Canvas->BeginScene();
+	DrawTrack(TImage1->Bitmap->Canvas,mxy.x,mxy.y,hdg,claBlack);
+	//DrawTrack(TImage1->Bitmap->Canvas,mxy.y,mxy.x,hdg,claBlack);
+	TImage1->Bitmap->Canvas->EndScene();
+}
+
+
 
 void __fastcall TForm1::BN_StartStopClick(TObject *Sender)
 {
@@ -559,16 +583,6 @@ void __fastcall TForm1::DrawNotes()
 }
 
 
-
-void __fastcall TForm1::DrawTgt()
-{
-	XY mxy = LLtoVPposition(tlat,tlon);
-
-	TImage1->Bitmap->Canvas->BeginScene();
-	DrawTrack(TImage1->Bitmap->Canvas,mxy.x,mxy.y,hdg,claBlack);
-	//DrawTrack(TImage1->Bitmap->Canvas,mxy.y,mxy.x,hdg,claBlack);
-	TImage1->Bitmap->Canvas->EndScene();
-}
 
 void __fastcall TForm1::BN_ClearClick(TObject *Sender)
 {
@@ -624,25 +638,36 @@ XY __fastcall TForm1::LLtoVPposition(double lat, double lng)
 
 }
 
-LngLat TForm1::MouseToLatLong(float x, float y)
+LngLat TForm1::ViewPortXYToLatLong(float x, float y)
 {
 	double scale;// = 2.0;
 	int IH = TImage1->Height;
 	int IW = TImage1->Width;
 	scale = 768.0/((double)IH);
-	pme("Height: %d  Width: %d  Scale is %f",IH,IW,scale);
+	//pme("IHeight: %d  IWidth: %d  Scale is %f",IH,IW,scale);
 
 	double PX = m_ViewPortBBox.left - (m_ProjPerHoriPixel * x * scale);
 	double PY = m_ViewPortBBox.top - (m_ProjPerVertPixel * y * scale);
 
 	LngLat LL = lnglat(PX, PY);
 
-	pme("mse xy: %2.0f %2.0f",x,y);
-	pme("mse Px: %5.0f  mse Py: %5.0f",PX,PY);
+	//pme("mse xy: %2.0f %2.0f",x,y);
+	//pme("mse Px: %5.0f  mse Py: %5.0f",PX,PY);
 	//pmeMouse("Mouse: PY:%5.0f PX:%5.0f  Lat:%5.1f  Lng: %5.1f",PY,PX,LL.lat,LL.lng);
 
 	return LL;
 }
 
 
+
+void __fastcall TForm1::BN_TestClick(TObject *Sender)
+{
+	TImage1->Scale->X = 2;
+	TImage1->Scale->Y = 2;
+
+	TImage1->MultiResBitmap->Items[0]->Scale= 0.5;
+	TImage1->MultiResBitmap->Items[0]->Scale->X = 0.5;
+
+}
+//---------------------------------------------------------------------------
 

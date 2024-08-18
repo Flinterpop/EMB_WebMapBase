@@ -44,6 +44,7 @@ __published:	// IDE-managed Components
 	TCheckBox *CB_TileCoords;
 	TCheckBox *CB_BigX;
 	TMemo *TM_Mouse;
+	TButton *BN_Test;
 	void __fastcall TImage1MouseWheel(TObject *Sender, TShiftState Shift, int WheelDelta,
 		  bool &Handled);
 	void __fastcall TImage1MouseMove(TObject *Sender, TShiftState Shift, float X, float Y);
@@ -59,6 +60,7 @@ __published:	// IDE-managed Components
 	void __fastcall Panel1Exit(TObject *Sender);
 	void __fastcall RefreshMap(TObject *Sender);
 	void __fastcall BN_ZeroClick(TObject *Sender);
+	void __fastcall BN_TestClick(TObject *Sender);
 
 
 private:	// User declarations
@@ -86,11 +88,11 @@ public:		// User declarations
 
 	void  pmeTileInfo(Tile t);
 
-    LngLat MouseToLatLong(float x, float y);
+    LngLat ViewPortXYToLatLong(float x, float y);
 
 	const int HALF_TILESIZE = 128;
 	const int TILESIZE = 256;
-	const int TILESIZEx3 = 768;
+	//const int TILESIZEx3 = 768;
 
 	bool b_dragging=false;
 
