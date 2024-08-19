@@ -184,9 +184,7 @@
         <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <Icon_MainIcon>EmbarcMapping_Icon.ico</Icon_MainIcon>
-        <UsePackages>true</UsePackages>
-        <DynamicRTL>true</DynamicRTL>
-        <LinkPackageImports>rtl.bpi;fmx.bpi</LinkPackageImports>
+        <LinkPackageStatics>rtl.lib;fmx.lib</LinkPackageStatics>
     </PropertyGroup>
     <ItemGroup>
         <CppCompile Include="EmbarcMapping.cpp">
